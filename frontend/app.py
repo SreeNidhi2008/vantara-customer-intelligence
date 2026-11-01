@@ -271,6 +271,15 @@ page = st.sidebar.radio(
 
 # OVERVIEW
 if page == "Overview":
+    with st.expander("Dataset Information"):
+        st.write("Dataset: UCI Online Retail II")
+        st.write("Cleaned transaction records: 779,425")
+        st.write("Identified customers: 5,878")
+        st.write("Countries represented: 41")
+        st.write("Period: December 2009 ? December 2011")
+
+    st.caption("AI-powered customer analytics | Retail intelligence | Data-driven decisions")
+
     st.header("Business Overview")
 
     col1, col2, col3, col4 = st.columns(4)
@@ -280,10 +289,33 @@ if page == "Overview":
     col3.metric("Total Revenue", f"£{customers['Monetary'].sum():,.0f}")
     col4.metric("Customer Segments", customers["Customer_Segment"].nunique())
 
+
+    st.subheader("Revenue Insights")
+    revenue_cols = st.columns(2)
+    revenue_cols[0].metric(
+        "Average Revenue per Customer",
+        f"?{customers['Monetary'].mean():,.2f}"
+    )
+    revenue_cols[1].metric(
+        "Median Revenue per Customer",
+        f"?{customers['Monetary'].median():,.2f}"
+    )
+
+    st.metric(
+        "Average Order Value",
+        f"?{customers['Average_Order_Value'].mean():,.2f}"
+    )
+
+
+    st.metric(
+        "Average Orders per Customer",
+        f"{customers['Frequency'].mean():.1f}"
+    )
+
     st.subheader("Customer Segment Distribution")
 
     segment_counts = customers["Customer_Segment"].value_counts()
-    st.bar_chart(segment_counts)
+    st.bar_chart(segment_counts, horizontal=True)
 
     st.subheader("Churn Distribution")
     churn_counts = churn["Churn"].value_counts()
@@ -293,23 +325,99 @@ if page == "Overview":
 # CUSTOMER SEGMENTATION
 elif page == "Customer Segmentation":
     st.header("Customer Segmentation")
+    top_customer = customers.loc[customers["Monetary"].idxmax()]
+    st.metric(
+        "Highest Value Customer ID",
+        str(int(top_customer["Customer ID"])),
+        f"?{top_customer['Monetary']:,.2f} revenue"
+    )
+
+    metric_cols = st.columns(3)
+    metric_cols[0].metric("Total Customers", f"{len(customers):,}")
+    metric_cols[1].metric("Number of Segments", customers["Customer_Segment"].nunique())
+    metric_cols[2].metric("Average Customer Revenue", f"?{customers['Monetary'].mean():,.2f}")
+
+    st.info(
+        "Customers are grouped by purchasing behaviour, "
+        "recency, frequency and monetary value."
+    )
+
 
     segment_counts = customers["Customer_Segment"].value_counts()
 
     st.subheader("Customer Distribution")
     st.bar_chart(segment_counts)
 
+
+    st.subheader("Top 10 Highest Revenue Customers")
+    top_customers = customers.nlargest(10, "Monetary")[
+        ["Customer ID", "Monetary", "Frequency", "Customer_Segment"]
+    ]
+    st.dataframe(top_customers, width="stretch", hide_index=True)
+
     st.subheader("Segment Revenue")
 
+    st.caption("Revenue contribution by customer segment")
+
+
     revenue = customers.groupby("Customer_Segment")["Monetary"].sum()
-    st.bar_chart(revenue)
+    st.bar_chart(revenue, horizontal=True)
 
     st.subheader("Customer Records")
-    st.dataframe(customers, use_container_width=True)
+    selected_segments = st.multiselect(
+        "Filter by Customer Segment",
+        options=sorted(customers["Customer_Segment"].dropna().unique()),
+        default=sorted(customers["Customer_Segment"].dropna().unique())
+    )
+
+    filtered_customers = customers[
+        customers["Customer_Segment"].isin(selected_segments)
+    ]
+
+
+    search_id = st.text_input("Search Customer ID")
+    if search_id.strip():
+        filtered_customers = filtered_customers[
+            filtered_customers["Customer ID"].astype(str).str.contains(
+                search_id.strip(), case=False, na=False
+            )
+        ]
+        st.caption(f"Search results: {len(filtered_customers):,}")
+    st.dataframe(filtered_customers, width="stretch")
+
+    st.caption(f"Showing {len(filtered_customers):,} customers")
+
+    st.download_button(
+        "Download Customer Data (CSV)",
+        customers.to_csv(index=False).encode("utf-8"),
+        "vantara_customer_data.csv",
+        "text/csv"
+    )
+
 
 # CHURN ANALYSIS
 elif page == "Churn Analysis":
     st.header("Customer Churn Analysis")
+
+    with st.expander("Churn Dataset Details"):
+        st.write(f"Customers in churn dataset: {len(churn):,}")
+        st.write(f"Active customers: {(churn['Churn'] == 0).sum():,}")
+        st.write(f"Churned customers: {(churn['Churn'] == 1).sum():,}")
+        st.write("Churn label: No purchase in the future 90-day window.")
+
+    churn_rate = churn["Churn"].mean() * 100
+    active_rate = 100 - churn_rate
+    rate_cols = st.columns(2)
+    rate_cols[0].metric("Churn Rate", f"{churn_rate:.1f}%")
+    rate_cols[1].metric("Active Rate", f"{active_rate:.1f}%")
+
+    st.caption(
+        "Churn identifies customers who made no purchase "
+        "during the defined future 90-day observation window."
+    )
+
+    st.metric("Overall Churn Rate", f"{churn['Churn'].mean() * 100:.1f}%")
+
 
     col1, col2 = st.columns(2)
 
@@ -324,19 +432,80 @@ elif page == "Churn Analysis":
     )
 
     st.subheader("Churn Distribution")
-    st.bar_chart(churn["Churn"].value_counts())
+    churn_labels = churn["Churn"].map({
+        0: "Active",
+        1: "Churned"
+    }).value_counts()
+
+    st.bar_chart(churn_labels)
+
+
+    st.subheader("Customer Status Percentages")
+    status_percentages = (
+        churn["Churn"].map({0: "Active", 1: "Churned"})
+        .value_counts(normalize=True) * 100
+    )
+    st.bar_chart(status_percentages)
 
     st.subheader("Churn Dataset")
-    st.dataframe(churn, use_container_width=True)
+
+    churn_filter = st.selectbox(
+        "Filter Customer Status",
+        ["All", "Active", "Churned"]
+    )
+
+    filtered_churn = churn.copy()
+    if churn_filter == "Active":
+        filtered_churn = churn[ churn["Churn"] == 0 ]
+    elif churn_filter == "Churned":
+        filtered_churn = churn[ churn["Churn"] == 1 ]
+
+    st.dataframe(filtered_churn, width="stretch")
+    st.caption(f"Showing {len(filtered_churn):,} records")
+
+    st.download_button(
+        "Download Churn Dataset (CSV)",
+        churn.to_csv(index=False).encode("utf-8"),
+        "vantara_churn_data.csv",
+        "text/csv"
+    )
+
 
 # CLV ANALYSIS
 elif page == "CLV Analysis":
     st.header("Customer Lifetime Value Analysis")
+    zero_revenue = (clv["Future_90_Day_Revenue"] == 0).sum()
+    st.metric("Customers with No Future 90-Day Revenue", f"{zero_revenue:,}")
+    st.caption("These customers had no recorded revenue in the future 90-day target window.")
+
+    clv_col1, clv_col2 = st.columns(2)
+
+    clv_col1.metric(
+        "Median Future Revenue",
+        f"?{clv['Future_90_Day_Revenue'].median():,.2f}"
+    )
+
+    clv_col2.metric(
+        "Highest Future Revenue",
+        f"?{clv['Future_90_Day_Revenue'].max():,.2f}"
+    )
+
+    st.info(
+        "This analysis uses historical customer behaviour "
+        "to examine revenue generated over a future 90-day period. "
+        "It is a revenue proxy, not full lifetime value."
+    )
+
+    st.metric(
+        "Average Actual Future 90-Day Revenue",
+        f"?{clv['Future_90_Day_Revenue'].mean():,.2f}"
+    )
+
 
     col1, col2 = st.columns(2)
 
     col1.metric(
-        "Average Predicted 90-Day Revenue",
+        "Average Actual Future 90-Day Revenue",
         f"£{clv['Future_90_Day_Revenue'].mean():,.2f}"
     )
 
@@ -345,6 +514,13 @@ elif page == "CLV Analysis":
         f"{(clv['Future_90_Day_Revenue'] > 0).sum():,}"
     )
 
+
+    st.download_button(
+        "Download CLV Dataset (CSV)",
+        clv.to_csv(index=False).encode("utf-8"),
+        "vantara_clv_dataset.csv",
+        "text/csv"
+    )
     st.subheader("Future 90-Day Revenue Distribution")
     st.bar_chart(
         clv["Future_90_Day_Revenue"].clip(upper=10000)
@@ -355,17 +531,62 @@ elif page == "CLV Analysis":
 # MODEL PERFORMANCE
 elif page == "Model Performance":
     st.header("Churn Model Performance")
+    best_f1 = comparison["F1 Score"].max()
+    st.metric("Best F1 Score", f"{best_f1:.4f}")
+
+    summary_cols = st.columns(2)
+    summary_cols[0].metric("Models Compared", f"{len(comparison):,}")
+    summary_cols[1].metric("Average F1 Score", f"{comparison['F1 Score'].mean():.3f}")
+
+    st.subheader("Best Performing Model")
+
+    leaderboard = comparison.sort_values(
+        "F1 Score", ascending=False
+    ).reset_index(drop=True)
+
+    st.success(
+        f"Top model: {leaderboard.iloc[0]['Model']} "
+        f"| F1 Score: {leaderboard.iloc[0]['F1 Score']:.4f}"
+    )
+
 
     st.dataframe(
         comparison,
-        use_container_width=True,
+        width="stretch",
         hide_index=True
     )
+    st.download_button(
+        "Download Model Comparison (CSV)",
+        comparison.to_csv(index=False).encode("utf-8"),
+        "vantara_model_comparison.csv",
+        "text/csv"
+    )
+
+
+
+    st.caption(
+        "Use F1 Score alongside precision, recall and accuracy "
+        "when comparing models on the imbalanced churn dataset."
+    )
+
+
+    st.subheader("Precision vs Recall")
+    precision_recall = comparison.set_index("Model")[["Precision", "Recall"]]
+    st.bar_chart(precision_recall, horizontal=True)
 
     st.subheader("F1 Score Comparison")
 
-    chart_data = comparison.set_index("Model")[["F1 Score"]]
-    st.bar_chart(chart_data)
+    selected_metric = st.selectbox(
+        "Choose Evaluation Metric",
+        ["F1 Score", "Accuracy", "Precision", "Recall"]
+    )
+    chart_data = comparison.set_index("Model")[[selected_metric]]
+    st.bar_chart(chart_data, horizontal=True)
+    st.caption(
+        "F1 Score balances precision and recall. "
+        "A higher score indicates a better balance between the two."
+    )
+
 
     best_model = comparison.sort_values(
         "F1 Score", ascending=False
@@ -390,7 +611,7 @@ elif page == "Explainability":
         st.subheader(title)
 
         if os.path.exists(path):
-            st.image(path, use_container_width=True)
+            st.image(path, width="stretch")
         else:
             st.warning(f"Chart not found: {path}")
 
@@ -399,7 +620,48 @@ st.sidebar.caption("Vantara Customer Intelligence Platform")
 
 
 
+# VANTARA LIGHT CHART THEME
+import matplotlib.pyplot as plt
+import plotly.io as pio
+
+pio.templates.default = "plotly_white"
+
+plt.rcParams["figure.facecolor"] = "#F4F7FB"
+plt.rcParams["axes.facecolor"] = "#FFFFFF"
+plt.rcParams["axes.edgecolor"] = "#DCE5EF"
+plt.rcParams["axes.labelcolor"] = "#172B4D"
+plt.rcParams["xtick.color"] = "#172B4D"
+plt.rcParams["ytick.color"] = "#172B4D"
+plt.rcParams["text.color"] = "#172B4D"
 
 
 
+# PROJECT INFORMATION
+with st.expander("About Vantara Customer Intelligence Platform"):
+    st.markdown("""
+    **Vantara Retail Solutions**
 
+    An intelligent customer analytics platform designed to:
+
+    - Analyse customer purchasing behaviour
+    - Identify customers at risk of churn
+    - Estimate future customer revenue
+    - Segment customers based on behaviour
+    - Explain machine learning predictions
+
+    **Dataset:** UCI Online Retail II
+
+    **Technologies:** Python, Pandas, Scikit-learn,
+    TensorFlow, FastAPI and Streamlit.
+    """)
+
+
+# VANTARA FOOTER
+st.divider()
+st.markdown(
+    "<div style='text-align:center;color:#718096;padding:12px;'>"
+    "<b>VANTARA</b> | Customer Intelligence Platform<br>"
+    "Turning retail data into actionable customer insights"
+    "</div>",
+    unsafe_allow_html=True
+)

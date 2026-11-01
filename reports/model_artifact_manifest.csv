@@ -1,0 +1,17 @@
+Artifact,Size_MB
+ann_churn.keras,0.06
+ann_scaler.pkl,0.0
+anomaly_autoencoder.keras,0.03
+anomaly_scaler.pkl,0.0
+clv_random_forest.pkl,10.38
+dbscan_model.pkl,0.35
+dbscan_scaler.pkl,0.0
+decision_tree_churn.pkl,0.02
+kmeans_model.pkl,0.02
+kmeans_scaler.pkl,0.0
+logistic_regression_churn.pkl,0.0
+lstm_purchase_model.keras,0.09
+lstm_scaler.pkl,0.0
+random_forest_churn.pkl,13.21
+svm_churn.pkl,0.15
+xgboost_churn.pkl,0.43
